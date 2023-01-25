@@ -1,32 +1,229 @@
-
-    clear; clc;
-    I = imread('cameraman.tif');
-    hpf =[-1 -1 -1; -1 9 -1; -1 -1 -1];
-    [r c] = size(I);
-    [m n] = size(hpf);
-    h = rot90(hpf, 2);
-    center = floor((size(h)+1)/2);
-    left = center(2) - 1;
-    right = n - center(2);
-    top = center(1) - 1;
-    bottom = m - center(1);
-    Rep = zeros(r + top + bottom, c + left + right);
-    for x = 1 + top : r + top
-    for y = 1 + left : c + left
-    Rep(x,y) = I(x - top, y - left);
+function VideoProcessing2()
+ 
+global vid
+ 
+f = figure('Name','Video Processing','MenuBar','none',...
+    'ToolBar','none','NumberTitle','off','Position',[180 100 1000 600]);
+panel1 = uipanel('FontWeight','bold',...
+    'FontSize',10,'Position',[.06 .59 .2 .12]);
+panel2 = uipanel('FontWeight','bold',...
+    'FontSize',10,'Position',[.06 .48 .2 .12]);
+panel3 = uipanel('FontWeight','bold',...
+    'FontSize',10,'Position',[.06 .37 .2 .12]);
+panel4 = uipanel('Title','Video','FontWeight','bold',...
+    'FontSize',10,'Position',[.35 .3 .55 .55]);
+ 
+btn1 = uicontrol('Parent',f,'Style', 'pushbutton', 'String', 'Browse Video',...
+    'Position', [60 480 100 25],'Callback', @pushbutton1);
+btn2 = uicontrol('Parent',f,'Style', 'pushbutton', 'String', 'Play',...
+    'Position', [60 180 100 25],'Callback', @pushbutton2,'Enable','off');
+ 
+htext  = uicontrol('Style','text','String','Video Name:',...
+    'Position',[60 440 70 20]);
+ 
+radio1 = uicontrol('Parent',panel1,'Style','radiobutton','String','Image Enhancement',...
+    'Position',[15 42 120 20],'Callback', @radiobutton1,'Value',1);
+radio2 = uicontrol('Parent',panel2,'Style','radiobutton','String','True Color',...
+    'Position',[15 42 90 20],'Callback', @radiobutton2,'Value',0);
+radio3 = uicontrol('Parent',panel3,'Style','radiobutton','String','Pseudo Color',...
+    'Position',[15 42 90 20],'Callback', @radiobutton3,'Value',0);
+ 
+edit1  = uicontrol('Style','edit','String','',...
+    'Position',[130 442 130 20],'Enable','inactive');
+ 
+popup1 = uicontrol('Parent',panel1,'Style','popupmenu',...
+    'String',{'Histogram Equalization','Intensity Adjustment','Gamma Correction'},...
+    'Position',[15 16 150 20],'Enable','on');
+popup2 = uicontrol('Parent',panel2,'Style','popupmenu',...
+    'String',{'rgb','rbg','grb','gbr','brg','bgr'},...
+    'Position',[15 16 150 20],'Enable','off');
+popup3 = uicontrol('Parent',panel3,'Style','popupmenu',...
+    'String',{'parula','jet','hsv','hot','cool','spring','summer',...
+    'autumn','winter','gray','bone','copper','pink'},...
+    'Position',[15 16 150 20],'Enable','off');
+ 
+ax1 = axes('Parent',panel4,'Position',[.002 .015 1 1],'XTick',[],...
+    'YTick',[],'Visible','off');
+ 
+    function pushbutton1(~,~)
+        [filename,pathname] = uigetfile('*.*');
+        if ~isequal(filename,0)
+            vid = fullfile(pathname,filename);
+            set(edit1,'String',filename)
+            set(btn2,'Enable','on')
+        else
+            return;
+        end
     end
+ 
+    function pushbutton2(~,~)
+        obj.reader = vision.VideoFileReader(vid);
+         
+        while ~isDone(obj.reader)
+            [frame,frameSize] = readFrame();
+            frame = im2uint8(frame);
+            showFrameOnAxis(ax1,frame)
+        end
+         
+        release(obj.reader);
+         
+        function [frame,frameSize] = readFrame()
+            frame = obj.reader.step();
+            R = frame(:,:,1);
+            G = frame(:,:,2);
+            B = frame(:,:,3);
+             
+            if get(radio1,'Value') == 1
+                val = get(popup1,'Value');
+                switch val
+                    case 1
+                        R = histeq(R);
+                        G = histeq(G);
+                        B = histeq(B);
+                        frame = cat(3,R,G,B);
+                    case 2
+                        R = imadjust(R);
+                        G = imadjust(G);
+                        B = imadjust(B);
+                        frame = cat(3,R,G,B);
+                    case 3
+                        hgamma = vision.GammaCorrector(2.2,...
+                            'Correction','De-gamma');
+                        frame = step(hgamma, frame);
+                end
+            elseif get(radio2,'Value') == 1
+                val = get(popup2,'Value');
+                switch val
+                    case 1
+                        frame = cat(3,R,G,B);
+                    case 2
+                        frame = cat(3,R,B,G);
+                    case 3
+                        frame = cat(3,G,R,B);
+                    case 4
+                        frame = cat(3,G,B,R);
+                    case 5
+                        frame = cat(3,B,R,G);
+                    case 6
+                        frame = cat(3,B,G,R);
+                end
+            elseif get(radio3,'Value') == 1
+                val = get(popup3,'Value');
+                frame = (R+G+B)/3;
+                switch val
+                    case 1
+                        colormap parula
+                    case 2
+                        colormap jet
+                    case 3
+                        colormap hsv
+                    case 4
+                        colormap hot
+                    case 5
+                        colormap cool
+                    case 6
+                        colormap spring
+                    case 7
+                        colormap summer
+                    case 8
+                        colormap autumn
+                    case 9
+                        colormap winter
+                    case 10
+                        colormap gray
+                    case 11
+                        colormap bone
+                    case 12
+                        colormap copper
+                    case 13
+                        colormap pink
+                end
+            end
+            frameSize = size(frame);
+        end
+         
+        function showFrameOnAxis(hAxis,~)
+            try
+                hChild = get(hAxis, 'Children');
+            catch %#ok<CTCH>
+                return; % hAxis does not exist; nothing to draw
+            end
+             
+            isFirstTime = isempty(hChild);
+            if isFirstTime
+                hIm = displayImage(hAxis, frame);
+                addScrollPanel(hAxis, hIm);
+            else
+                hIm = hChild;
+                try
+                    set(hIm,'cdata',frame); drawnow;
+                catch  %#ok<CTCH>
+                    % figure closed
+                    return;
+                end
+            end
+        end
+         
+        function addScrollPanel(hAxis, hIm)
+            hPanel = get(hAxis,'parent');
+            pos = get(hAxis,'position');
+             
+            hSP = imscrollpanel(hPanel,hIm);
+            set(hSP,'Units','normalized', 'Position',pos);
+        end
+        %--------------------------------------------------------------------------
+        function hIm = displayImage(hAxis, ~)
+            xdata = [1 frameSize(2)];
+            ydata = [1 frameSize(1)];
+            cdata = frame;
+            cdatamapping = 'direct';
+             
+            %             hIm = image(xdata,ydata,cdata, ...
+            %                 'BusyAction', 'cancel', ...
+            %                 'Parent', hAxis, ...
+            %                 'CDataMapping', cdatamapping, ...
+            %                 'Interruptible', 'off');
+             
+            hIm = image(cdata, ...
+                'BusyAction', 'cancel', ...
+                'Parent', hAxis, ...
+                'CDataMapping', cdatamapping, ...
+                'Interruptible', 'off');
+             
+            set(hAxis, ...
+                'YDir','reverse',...
+                'TickDir', 'out', ...
+                'XGrid', 'off', ...
+                'YGrid', 'off', ...
+                'PlotBoxAspectRatioMode', 'auto', ...
+                'Visible', 'off');
+        end
     end
-    B = zeros(r , c);
-    for x = 1 : r
-    for y = 1 : c
-        for i = 1 : m
-    for j = 1 : n
-    q = x - 1;
-    w = y -1;
-    B(x, y) = B(x, y) + (Rep(i + q, j + w) * h(i, j));
+ 
+    function radiobutton1(~,~)
+        set(radio1,'Value',1)
+        set(popup1,'Enable','on')
+        set(radio2,'Value',0)
+        set(popup2,'Enable','off')
+        set(radio3,'Value',0)
+        set(popup3,'Enable','off')
     end
+ 
+    function radiobutton2(~,~)
+        set(radio1,'Value',0)
+        set(popup1,'Enable','off')
+        set(radio2,'Value',1)
+        set(popup2,'Enable','on')
+        set(radio3,'Value',0)
+        set(popup3,'Enable','off')
     end
+ 
+    function radiobutton3(~,~)
+        set(radio1,'Value',0)
+        set(popup1,'Enable','off')
+        set(radio2,'Value',0)
+        set(popup2,'Enable','off')
+        set(radio3,'Value',1)
+        set(popup3,'Enable','on')
     end
-    end
-    figure, imshow(I);
-    figure, imshow(uint8(B));
+end
